@@ -1,39 +1,10 @@
 import quickfix as fix
 import quickfix44 as fix44
+import random
 
-class Application(fix.Application):
-    def onCreate(self, sessionID):
-        print(f"Session created: {sessionID}")
-        self.sessionID = sessionID
-
-    def onLogon(self, sessionID):
-        print(f"Logon - sessionID: {sessionID}")
-
-    def onLogout(self, sessionID):
-        print(f"Logout - sessionID: {sessionID}")
-
-    def toAdmin(self, message, sessionID):
-        print(f"Admin message sent: {message}")
-
-    def fromAdmin(self, message, sessionID):
-        print(f"Admin message received: {message}")
-
-    def toApp(self, message, sessionID):
-        print(f"Application message sent: {message}")
-
-    def fromApp(self, message, sessionID):
-        print(f"Application message received: {message}")
-        msg_type = fix.MsgType()
-        message.getHeader().getField(msg_type)
-
-        if msg_type.getValue() == fix.MsgType_NewOrderSingle:
-            self.on_new_order_single(message, sessionID)
-        elif msg_type.getValue() == fix.MsgType_OrderCancelRequest:
-            self.on_order_cancel_request(message, sessionID)
-        elif msg_type.getValue() == fix.MsgType_OrderCancelReplaceRequest:
-            self.on_order_cancel_replace_request(message, sessionID)
-
-    def on_new_order_single(self, message, sessionID):
+class MessageHandler:
+    @staticmethod
+    def handle_new_order_single(message, sessionID):
         symbol = fix.Symbol()
         side = fix.Side()
         order_qty = fix.OrderQty()
@@ -46,7 +17,6 @@ class Application(fix.Application):
 
         print(f"Received NewOrderSingle: {symbol.getValue()} {order_qty.getValue()} @ {price.getValue()} {side.getValue()}")
 
-        # Respond with an ExecutionReport (accepted)
         exec_report = fix44.ExecutionReport(
             fix.OrderID(str(random.randint(1000, 9999))),
             fix.ExecID(str(random.randint(1000, 9999))),
@@ -61,7 +31,8 @@ class Application(fix.Application):
         exec_report.setField(fix.ClOrdID(message.getField(fix.ClOrdID()).getValue()))
         fix.Session.sendToTarget(exec_report, sessionID)
 
-    def on_order_cancel_request(self, message, sessionID):
+    @staticmethod
+    def handle_order_cancel_request(message, sessionID):
         orig_cl_ord_id = fix.OrigClOrdID()
         cl_ord_id = fix.ClOrdID()
         symbol = fix.Symbol()
@@ -74,7 +45,6 @@ class Application(fix.Application):
 
         print(f"Received OrderCancelRequest: Cancel {orig_cl_ord_id.getValue()} for {symbol.getValue()} {side.getValue()}")
 
-        # Respond with a Cancel ExecutionReport
         exec_report = fix44.ExecutionReport(
             fix.OrderID(orig_cl_ord_id.getValue()),
             fix.ExecID(str(random.randint(1000, 9999))),
@@ -89,7 +59,8 @@ class Application(fix.Application):
         exec_report.setField(fix.ClOrdID(cl_ord_id.getValue()))
         fix.Session.sendToTarget(exec_report, sessionID)
 
-    def on_order_cancel_replace_request(self, message, sessionID):
+    @staticmethod
+    def handle_order_cancel_replace_request(message, sessionID):
         orig_cl_ord_id = fix.OrigClOrdID()
         cl_ord_id = fix.ClOrdID()
         symbol = fix.Symbol()
@@ -106,7 +77,6 @@ class Application(fix.Application):
 
         print(f"Received OrderCancelReplaceRequest: Modify {orig_cl_ord_id.getValue()} for {symbol.getValue()} {side.getValue()} to {order_qty.getValue()} @ {price.getValue()}")
 
-        # Respond with a Replace ExecutionReport
         exec_report = fix44.ExecutionReport(
             fix.OrderID(orig_cl_ord_id.getValue()),
             fix.ExecID(str(random.randint(1000, 9999))),
@@ -120,18 +90,3 @@ class Application(fix.Application):
         )
         exec_report.setField(fix.ClOrdID(cl_ord_id.getValue()))
         fix.Session.sendToTarget(exec_report, sessionID)
-
-def main():
-    settings = fix.SessionSettings("config/server.cfg")
-    application = Application()
-    store_factory = fix.FileStoreFactory(settings)
-    log_factory = fix.FileLogFactory(settings)
-    acceptor = fix.SocketAcceptor(application, store_factory, settings, log_factory)
-
-    print("Starting server...")
-    acceptor.start()
-    input("Press <ENTER> to stop the server...\n")
-    acceptor.stop()
-
-if __name__ == "__main__":
-    main()
